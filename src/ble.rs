@@ -143,6 +143,17 @@ fn parse_btmon(
             match keiser::parse_stats(&payload) {
                 Ok(stats) => {
                     let version = keiser::bike_version(&payload).ok();
+                    if !stats.is_realtime() {
+                        log::info(
+                            "bike.keiser",
+                            "non_realtime_packet_ignored",
+                            &[
+                                ("address", current_address.clone()),
+                                ("interval", stats.interval.to_string()),
+                            ],
+                        );
+                        continue;
+                    }
                     for measurement in dropout_filter.ingest(stats.into_measurement()) {
                         if let Some(telemetry_tx) = &telemetry_tx {
                             let _ = telemetry_tx.send(measurement.clone());
@@ -198,7 +209,7 @@ fn normalize_keiser_payload(
     }
 
     let company_is_keiser = company_id == Some(0x0102);
-    if payload.len() >= 17 && (company_is_keiser || known_keiser_address) {
+    if payload.len() >= 10 && (company_is_keiser || known_keiser_address) {
         let mut prefixed = Vec::with_capacity(payload.len() + 2);
         prefixed.extend_from_slice(&[0x02, 0x01]);
         prefixed.extend_from_slice(&payload);
@@ -296,8 +307,7 @@ mod tests {
     #[test]
     fn normalizes_stripped_keiser_company_data() {
         let stripped = vec![
-            0x06, 0x30, 0x42, 0x10, 0x08, 0x04, 0x30, 0x40, 0x80, 0x10, 0x20, 0x30, 0x40, 0x50,
-            0x60, 0x70, 0x80,
+            0x06, 0x30, 0x42, 0x10, 0x08, 0x04, 0x30, 0x40, 0x80, 0x10,
         ];
 
         let payload = normalize_keiser_payload(stripped, Some(0x0102), false).unwrap();
