@@ -32,7 +32,7 @@ Pedalcast can run with either one or two Bluetooth adapters:
 ## Raspberry Pi Install
 
 Install the Bluetooth tools, download the release package, then install and
-start the service. Rust is not required for the release package.
+start the service. Git and Rust are not required for the release package.
 
 ```sh
 sudo apt install bluez
@@ -118,6 +118,10 @@ To remove the service and installed binary:
 ```
 
 ## Local Smoke Run
+
+This section is for development from a source checkout. Normal Raspberry Pi
+installs should use the release package above and do not need Git, Rust, or
+Cargo.
 
 On a development machine without Bluetooth adapters exposed through Linux sysfs,
 mock available adapters:
