@@ -116,8 +116,8 @@ fn parse_btmon(
             current_company_id = None;
         } else if let Some(company) = trimmed.strip_prefix("Company: ") {
             current_company_id = parse_company_id(company);
-        } else if let Some(name) = trimmed.strip_prefix("Name (complete): ") {
-            if name.contains("M3") {
+        } else if let Some(name) = parse_name(trimmed) {
+            if is_keiser_name(name) {
                 keiser_addresses.insert(current_address.clone());
                 log::info(
                     "bike.keiser",
@@ -219,6 +219,15 @@ fn parse_company_id(company: &str) -> Option<u16> {
     }
 }
 
+fn parse_name(line: &str) -> Option<&str> {
+    line.strip_prefix("Name (complete): ")
+        .or_else(|| line.strip_prefix("Name (short): "))
+}
+
+fn is_keiser_name(name: &str) -> bool {
+    name.split_whitespace().any(|part| part == "M3")
+}
+
 fn run_command(program: &str, args: &[&str]) -> Result<(), PedalcastError> {
     let output = Command::new(program)
         .args(args)
@@ -255,7 +264,9 @@ fn decode_hex(value: &str) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_hex, normalize_keiser_payload, parse_company_id};
+    use super::{
+        decode_hex, is_keiser_name, normalize_keiser_payload, parse_company_id, parse_name,
+    };
 
     #[test]
     fn parses_decimal_and_hex_company_ids() {
@@ -267,6 +278,19 @@ mod tests {
     fn decodes_contiguous_and_spaced_hex() {
         assert_eq!(decode_hex("020106"), Some(vec![0x02, 0x01, 0x06]));
         assert_eq!(decode_hex("02 01 06"), Some(vec![0x02, 0x01, 0x06]));
+    }
+
+    #[test]
+    fn parses_complete_and_short_names() {
+        assert_eq!(parse_name("Name (complete): M3"), Some("M3"));
+        assert_eq!(parse_name("Name (short): M3"), Some("M3"));
+    }
+
+    #[test]
+    fn recognizes_keiser_m3_names() {
+        assert!(is_keiser_name("M3"));
+        assert!(is_keiser_name("Keiser M3"));
+        assert!(!is_keiser_name("S22 08DE LE"));
     }
 
     #[test]
