@@ -44,7 +44,15 @@ rm -rf "${package_dir}"
 mkdir -p "${package_dir}"
 install -m 0755 "${repo_root}/target/release/pedalcast" "${package_dir}/pedalcast"
 install -m 0644 "${repo_root}/README.md" "${package_dir}/README.md"
-install -m 0644 "${repo_root}/examples/config.toml" "${package_dir}/config.toml"
+mkdir -p "${package_dir}/deploy" "${package_dir}/examples" "${package_dir}/scripts"
+install -m 0644 "${repo_root}/deploy/pedalcast.service" "${package_dir}/deploy/pedalcast.service"
+install -m 0644 "${repo_root}/examples/config.toml" "${package_dir}/examples/config.toml"
+install -m 0644 "${repo_root}/examples/config.single-adapter.toml" "${package_dir}/examples/config.single-adapter.toml"
+install -m 0755 "${repo_root}/scripts/install-systemd.sh" "${package_dir}/scripts/install-systemd.sh"
+install -m 0755 "${repo_root}/scripts/status.sh" "${package_dir}/scripts/status.sh"
+install -m 0755 "${repo_root}/scripts/logs.sh" "${package_dir}/scripts/logs.sh"
+install -m 0755 "${repo_root}/scripts/uninstall-systemd.sh" "${package_dir}/scripts/uninstall-systemd.sh"
 
-tar -C "${package_dir}" -czf "${dist_dir}/pedalcast-linux-${arch}.tar.gz" pedalcast README.md config.toml
+tar -C "${package_dir}" -czf "${dist_dir}/pedalcast-linux-${arch}.tar.gz" \
+  pedalcast README.md deploy examples scripts
 echo "${dist_dir}/pedalcast-linux-${arch}.tar.gz"

@@ -96,6 +96,8 @@ if [[ -n "${binary_source}" ]]; then
   fi
 elif [[ -n "${PEDALCAST_NO_BUILD:-}" ]]; then
   download_release_binary
+elif [[ -x "${repo_root}/pedalcast" ]]; then
+  binary_source="${repo_root}/pedalcast"
 elif [[ -x "${repo_root}/target/release/pedalcast" && -z "${PEDALCAST_FORCE_BUILD:-}" ]]; then
   binary_source="${repo_root}/target/release/pedalcast"
 elif command -v cargo >/dev/null 2>&1; then

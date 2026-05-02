@@ -31,22 +31,21 @@ Pedalcast can run with either one or two Bluetooth adapters:
 
 ## Raspberry Pi Install
 
-Install the Bluetooth tools, clone Pedalcast on the Pi, then install and start
-the service. Rust is optional: if `cargo` is not installed, the installer
-downloads a prebuilt binary from the latest GitHub release.
+Install the Bluetooth tools, download the release package, then install and
+start the service. Rust is not required for the release package.
 
 ```sh
 sudo apt install bluez
-git clone <pedalcast-repo-url>
+curl -fL https://github.com/zellux/pedalcast/releases/latest/download/pedalcast-linux-armv7.tar.gz -o pedalcast-linux-armv7.tar.gz
+mkdir pedalcast
+tar -xzf pedalcast-linux-armv7.tar.gz -C pedalcast
 cd pedalcast
-./scripts/install-systemd.sh
+sudo ./scripts/install-systemd.sh
 ```
 
-The installer builds `target/release/pedalcast`, installs it to
-`/usr/local/bin/pedalcast` when Rust is available, or installs the downloaded
-release binary when Rust is not available. It also installs config to
-`/etc/pedalcast/config.toml` and enables `pedalcast.service` at boot. On first
-install it detects available Bluetooth adapters and writes a config
+The installer installs `pedalcast` to `/usr/local/bin/pedalcast`, installs
+config to `/etc/pedalcast/config.toml`, and enables `pedalcast.service` at boot.
+On first install it detects available Bluetooth adapters and writes a config
 automatically:
 
 - Two or more adapters: `hci0` serves the app, `hci1` scans the bike.
