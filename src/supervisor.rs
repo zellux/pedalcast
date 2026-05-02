@@ -2,6 +2,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::adapter::AdapterRegistry;
+use crate::ble::{BtmonScanner, LegacyAdvertiser};
 use crate::config::Config;
 use crate::error::PedalcastError;
 use crate::log;
@@ -62,25 +63,23 @@ impl Supervisor {
     }
 
     fn run_daemon(self) -> Result<(), PedalcastError> {
-        log::info(
-            "bike.keiser",
-            "scanner_pending_bluez",
-            &[("adapter", self.config.bike.adapter.to_string())],
+        let advertiser =
+            LegacyAdvertiser::new(self.config.server.adapter, self.config.server.name.clone());
+        advertiser.start()?;
+
+        let mut scanner = BtmonScanner::new(
+            self.config.bike.adapter,
+            self.config.filter.suppress_single_zero_dropouts,
         );
-        log::warn(
-            "app.ble",
-            "gatt_server_pending_bluez",
-            &[
-                ("adapter", self.config.server.adapter.to_string()),
-                ("name", self.config.server.name.clone()),
-            ],
-        );
+        scanner.start()?;
+
+        log::warn("app.ble", "gatt_server_pending_bluez", &[]);
         log::info(
             "supervisor",
             "running",
             &[
                 ("bike", "searching".to_string()),
-                ("app_server", "not_implemented".to_string()),
+                ("app_server", "advertising_no_gatt".to_string()),
             ],
         );
 
@@ -91,7 +90,7 @@ impl Supervisor {
                 "heartbeat",
                 &[
                     ("bike", "searching".to_string()),
-                    ("app_server", "not_implemented".to_string()),
+                    ("app_server", "advertising_no_gatt".to_string()),
                 ],
             );
         }
