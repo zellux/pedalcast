@@ -26,9 +26,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . "$HOME/.cargo/env"
 ```
 
-Install the Bluetooth tools, clone Pedalcast on the Pi, edit
-[examples/config.toml](examples/config.toml) if your Bluetooth adapter numbers
-differ, then install and start the service:
+Install the Bluetooth tools, clone Pedalcast on the Pi, then install and start
+the service:
 
 ```sh
 sudo apt install bluez
@@ -39,7 +38,15 @@ cd pedalcast
 
 The installer builds `target/release/pedalcast`, installs it to
 `/usr/local/bin/pedalcast`, installs config to `/etc/pedalcast/config.toml`, and
-enables `pedalcast.service` at boot.
+enables `pedalcast.service` at boot. On first install it detects available
+Bluetooth adapters and writes a config automatically:
+
+- Two or more adapters: `hci0` serves the app, `hci1` scans the bike.
+- One adapter: the same adapter scans and advertises in single-adapter mode.
+
+Single-adapter mode works on some controllers, but scan and advertising share
+the same radio, so signal dropouts are more likely. If you have two adapters,
+use two.
 
 Useful service commands:
 
@@ -53,8 +60,11 @@ sudo systemctl stop pedalcast
 To replace an existing `/etc/pedalcast/config.toml` with the example config:
 
 ```sh
-PEDALCAST_OVERWRITE_CONFIG=1 ./scripts/install-systemd.sh
+PEDALCAST_CONFIG_SOURCE=examples/config.toml PEDALCAST_OVERWRITE_CONFIG=1 ./scripts/install-systemd.sh
 ```
+
+For a checked-in single-adapter example, see
+[examples/config.single-adapter.toml](examples/config.single-adapter.toml).
 
 To remove the service and installed binary:
 

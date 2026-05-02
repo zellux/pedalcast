@@ -29,11 +29,24 @@ impl Supervisor {
         registry.require("bike", config.bike.adapter)?;
         registry.require("server", config.server.adapter)?;
 
-        if config.bike.adapter == config.server.adapter && !allow_single_adapter {
-            return Err(PedalcastError::adapter(format!(
-                "bike and server both use {}; configure separate adapters or pass --allow-single-adapter for debugging",
-                config.bike.adapter
-            )));
+        if config.bike.adapter == config.server.adapter {
+            let mode = if allow_single_adapter {
+                "explicit"
+            } else {
+                "default"
+            };
+            log::warn(
+                "adapter",
+                "single_adapter_mode",
+                &[
+                    ("adapter", config.bike.adapter.to_string()),
+                    ("mode", mode.to_string()),
+                    (
+                        "risk",
+                        "scan_and_advertise_may_compete_on_some_controllers".to_string(),
+                    ),
+                ],
+            );
         }
 
         log::info(

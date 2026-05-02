@@ -93,5 +93,5 @@ impl Args {
 }
 
 fn print_help() {
-    println!("pedalcast\n\nusage: pedalcast [--config PATH] [--check] [--allow-single-adapter]\n");
+    println!("pedalcast\n\nusage: pedalcast [--config PATH] [--check]\n\n--allow-single-adapter is accepted for compatibility; single-adapter configs are supported by default.\n");
 }
