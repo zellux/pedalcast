@@ -1,0 +1,16 @@
+[bike]
+type = "keiser_m3i"
+adapter = 1
+
+[server]
+type = "ble"
+adapter = 0
+name = "Pedalcast"
+
+[timeouts]
+telemetry_stale_ms = 3000
+bike_disconnect_ms = 300000
+
+[filter]
+suppress_single_zero_dropouts = true
+

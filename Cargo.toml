@@ -1,0 +1,9 @@
+[package]
+name = "pedalcast"
+version = "0.1.0"
+edition = "2021"
+description = "Keiser M3i telemetry bridge for standard indoor-cycling apps"
+license = "MIT"
+
+[dependencies]
+

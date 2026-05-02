@@ -1,0 +1,16 @@
+[Unit]
+Description=Pedalcast
+After=bluetooth.target
+Requires=bluetooth.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pedalcast --config /etc/pedalcast/config.toml
+Restart=always
+RestartSec=2
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+
