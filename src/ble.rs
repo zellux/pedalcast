@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::Sender;
 use std::thread;
 
 use crate::adapter::AdapterId;
@@ -49,14 +50,20 @@ impl LegacyAdvertiser {
 pub struct BtmonScanner {
     adapter: AdapterId,
     suppress_single_zero_dropouts: bool,
+    telemetry_tx: Option<Sender<i16>>,
     btmon: Option<Child>,
 }
 
 impl BtmonScanner {
-    pub fn new(adapter: AdapterId, suppress_single_zero_dropouts: bool) -> Self {
+    pub fn new(
+        adapter: AdapterId,
+        suppress_single_zero_dropouts: bool,
+        telemetry_tx: Option<Sender<i16>>,
+    ) -> Self {
         Self {
             adapter,
             suppress_single_zero_dropouts,
+            telemetry_tx,
             btmon: None,
         }
     }
@@ -77,7 +84,8 @@ impl BtmonScanner {
             .take()
             .ok_or_else(|| PedalcastError::runtime("failed to capture btmon stdout"))?;
         let suppress = self.suppress_single_zero_dropouts;
-        thread::spawn(move || parse_btmon(stdout, suppress));
+        let telemetry_tx = self.telemetry_tx.clone();
+        thread::spawn(move || parse_btmon(stdout, suppress, telemetry_tx));
 
         let _ = run_command(
             "sudo",
@@ -123,7 +131,11 @@ impl Drop for BtmonScanner {
     }
 }
 
-fn parse_btmon(stdout: impl std::io::Read, suppress_single_zero_dropouts: bool) {
+fn parse_btmon(
+    stdout: impl std::io::Read,
+    suppress_single_zero_dropouts: bool,
+    telemetry_tx: Option<Sender<i16>>,
+) {
     let reader = BufReader::new(stdout);
     let mut current_address = String::new();
     let mut dropout_filter = DropoutFilter::new(suppress_single_zero_dropouts);
@@ -159,6 +171,9 @@ fn parse_btmon(stdout: impl std::io::Read, suppress_single_zero_dropouts: bool) 
                 Ok(stats) => {
                     let version = keiser::bike_version(&payload).ok();
                     for measurement in dropout_filter.ingest(stats.into_measurement()) {
+                        if let Some(telemetry_tx) = &telemetry_tx {
+                            let _ = telemetry_tx.send(measurement.power_watts as i16);
+                        }
                         log::info(
                             "bike.keiser",
                             "telemetry",

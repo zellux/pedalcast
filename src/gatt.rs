@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::thread;
+use std::time::Duration;
 
+use zbus::block_on;
 use zbus::blocking::{Connection, Proxy};
 use zbus::fdo::ObjectManager;
 use zbus::interface;
@@ -23,11 +26,15 @@ const SENSOR_LOCATION_UUID: &str = "00002a5d-0000-1000-8000-00805f9b34fb";
 
 pub struct CyclingPowerGatt {
     adapter: AdapterId,
+    telemetry_rx: Receiver<i16>,
 }
 
 impl CyclingPowerGatt {
-    pub fn new(adapter: AdapterId) -> Self {
-        Self { adapter }
+    pub fn new(adapter: AdapterId, telemetry_rx: Receiver<i16>) -> Self {
+        Self {
+            adapter,
+            telemetry_rx,
+        }
     }
 
     pub fn start(self) {
@@ -100,8 +107,40 @@ impl CyclingPowerGatt {
             ],
         );
 
+        let measurement = connection
+            .object_server()
+            .interface::<_, MeasurementCharacteristic>(MEASUREMENT_PATH)
+            .map_err(|source| {
+                PedalcastError::runtime(format!("measurement interface lookup failed: {source}"))
+            })?;
+
         loop {
-            thread::park();
+            match self.telemetry_rx.recv_timeout(Duration::from_secs(60)) {
+                Ok(power_watts) => {
+                    let mut iface = measurement.get_mut();
+                    iface.power_watts = power_watts;
+                    let notifying = iface.notifying;
+                    if notifying {
+                        block_on(iface.value_changed(measurement.signal_emitter())).map_err(
+                            |source| {
+                                PedalcastError::runtime(format!(
+                                    "measurement notify failed: {source}"
+                                ))
+                            },
+                        )?;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    log::info(
+                        "app.gatt",
+                        "heartbeat",
+                        &[("service", "cycling_power".to_string())],
+                    );
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(PedalcastError::runtime("telemetry channel disconnected"));
+                }
+            }
         }
     }
 }
@@ -123,6 +162,7 @@ impl CyclingPowerService {
 
 #[derive(Default)]
 struct MeasurementCharacteristic {
+    power_watts: i16,
     notifying: bool,
 }
 
@@ -130,7 +170,7 @@ struct MeasurementCharacteristic {
 impl MeasurementCharacteristic {
     #[zbus(name = "ReadValue")]
     fn read_value(&self, _options: HashMap<String, OwnedValue>) -> Vec<u8> {
-        cycling_power_measurement(0)
+        self.value()
     }
 
     #[zbus(name = "StartNotify")]
@@ -166,6 +206,11 @@ impl MeasurementCharacteristic {
     #[zbus(property)]
     fn flags(&self) -> Vec<&str> {
         vec!["read", "notify"]
+    }
+
+    #[zbus(property, name = "Value")]
+    fn value(&self) -> Vec<u8> {
+        cycling_power_measurement(self.power_watts)
     }
 
     #[zbus(property)]

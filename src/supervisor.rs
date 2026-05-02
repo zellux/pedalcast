@@ -1,3 +1,4 @@
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
@@ -67,11 +68,13 @@ impl Supervisor {
         let advertiser =
             LegacyAdvertiser::new(self.config.server.adapter, self.config.server.name.clone());
         advertiser.start()?;
-        CyclingPowerGatt::new(self.config.server.adapter).start();
+        let (telemetry_tx, telemetry_rx) = mpsc::channel();
+        CyclingPowerGatt::new(self.config.server.adapter, telemetry_rx).start();
 
         let mut scanner = BtmonScanner::new(
             self.config.bike.adapter,
             self.config.filter.suppress_single_zero_dropouts,
+            Some(telemetry_tx),
         );
         scanner.start()?;
 
