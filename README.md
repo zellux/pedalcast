@@ -17,6 +17,18 @@ This repository currently contains:
 - BlueZ advertising and a Cycling Power GATT service for training apps.
 - Systemd installation scripts for Raspberry Pi style deployments.
 
+## Bluetooth Adapters
+
+Pedalcast can run with either one or two Bluetooth adapters:
+
+- Two adapters are recommended. One adapter scans the bike while the other
+  advertises the Cycling Power service to training apps, which is usually more
+  stable.
+- One adapter can work, and the installer will automatically create a
+  single-adapter config when only one `hciN` device is present. Because scan and
+  advertising share the same radio, some hardware will occasionally drop signal
+  or reconnect.
+
 ## Raspberry Pi Install
 
 Install Rust first if the Pi does not already have it:
@@ -45,8 +57,8 @@ Bluetooth adapters and writes a config automatically:
 - One adapter: the same adapter scans and advertises in single-adapter mode.
 
 Single-adapter mode works on some controllers, but scan and advertising share
-the same radio, so signal dropouts are more likely. If you have two adapters,
-use two.
+the same radio, so signal dropouts are more likely. For the most stable setup,
+use two Bluetooth adapters.
 
 Useful service commands:
 
