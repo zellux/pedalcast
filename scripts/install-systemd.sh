@@ -8,15 +8,12 @@ config_dir="${PEDALCAST_CONFIG_DIR:-/etc/pedalcast}"
 config_path="${PEDALCAST_CONFIG_PATH:-${config_dir}/config.toml}"
 service_path="${PEDALCAST_SERVICE_PATH:-/etc/systemd/system/pedalcast.service}"
 config_source="${PEDALCAST_CONFIG_SOURCE:-}"
+release_base="${PEDALCAST_RELEASE_BASE:-https://github.com/zellux/pedalcast/releases/latest/download}"
+binary_source="${PEDALCAST_BINARY_SOURCE:-}"
 
 if ! command -v cargo >/dev/null 2>&1 && [[ -f "${HOME}/.cargo/env" ]]; then
   # shellcheck source=/dev/null
   . "${HOME}/.cargo/env"
-fi
-
-if ! command -v cargo >/dev/null 2>&1; then
-  echo "error: cargo not found. Install Rust first: https://rustup.rs/" >&2
-  exit 1
 fi
 
 if ! command -v systemctl >/dev/null 2>&1; then
@@ -37,9 +34,69 @@ if [[ -n "${config_source}" && ! -f "${config_source}" ]]; then
 fi
 
 cd "${repo_root}"
-cargo build --release
 
-sudo install -m 0755 "${repo_root}/target/release/pedalcast" "${binary_path}"
+temp_dir=""
+cleanup() {
+  if [[ -n "${temp_dir}" ]]; then
+    rm -rf "${temp_dir}"
+  fi
+}
+trap cleanup EXIT
+
+detect_release_arch() {
+  case "$(uname -m)" in
+    armv6l | armv7l) echo "armv7" ;;
+    aarch64) echo "aarch64" ;;
+    x86_64) echo "x86_64" ;;
+    *)
+      echo "error: unsupported release architecture: $(uname -m)" >&2
+      return 1
+      ;;
+  esac
+}
+
+download_release_binary() {
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "error: cargo not found and curl not found; cannot download a release binary." >&2
+    return 1
+  fi
+  if ! command -v tar >/dev/null 2>&1; then
+    echo "error: cargo not found and tar not found; cannot unpack a release binary." >&2
+    return 1
+  fi
+
+  local arch
+  arch="$(detect_release_arch)"
+  local asset="pedalcast-linux-${arch}.tar.gz"
+  local url="${release_base}/${asset}"
+  temp_dir="$(mktemp -d)"
+  echo "cargo not found; downloading ${url}"
+  curl -fL "${url}" -o "${temp_dir}/${asset}"
+  tar -xzf "${temp_dir}/${asset}" -C "${temp_dir}"
+  if [[ ! -x "${temp_dir}/pedalcast" ]]; then
+    echo "error: release asset did not contain an executable named pedalcast" >&2
+    return 1
+  fi
+  binary_source="${temp_dir}/pedalcast"
+}
+
+if [[ -n "${binary_source}" ]]; then
+  if [[ ! -x "${binary_source}" ]]; then
+    echo "error: binary source is not executable: ${binary_source}" >&2
+    exit 1
+  fi
+elif [[ -n "${PEDALCAST_NO_BUILD:-}" ]]; then
+  download_release_binary
+elif [[ -x "${repo_root}/target/release/pedalcast" && -z "${PEDALCAST_FORCE_BUILD:-}" ]]; then
+  binary_source="${repo_root}/target/release/pedalcast"
+elif command -v cargo >/dev/null 2>&1; then
+  cargo build --release
+  binary_source="${repo_root}/target/release/pedalcast"
+else
+  download_release_binary
+fi
+
+sudo install -m 0755 "${binary_source}" "${binary_path}"
 sudo mkdir -p "${config_dir}"
 
 if [[ -f "${config_path}" && -z "${PEDALCAST_OVERWRITE_CONFIG:-}" ]]; then

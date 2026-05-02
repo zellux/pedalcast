@@ -31,15 +31,9 @@ Pedalcast can run with either one or two Bluetooth adapters:
 
 ## Raspberry Pi Install
 
-Install Rust first if the Pi does not already have it:
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-. "$HOME/.cargo/env"
-```
-
 Install the Bluetooth tools, clone Pedalcast on the Pi, then install and start
-the service:
+the service. Rust is optional: if `cargo` is not installed, the installer
+downloads a prebuilt binary from the latest GitHub release.
 
 ```sh
 sudo apt install bluez
@@ -49,9 +43,11 @@ cd pedalcast
 ```
 
 The installer builds `target/release/pedalcast`, installs it to
-`/usr/local/bin/pedalcast`, installs config to `/etc/pedalcast/config.toml`, and
-enables `pedalcast.service` at boot. On first install it detects available
-Bluetooth adapters and writes a config automatically:
+`/usr/local/bin/pedalcast` when Rust is available, or installs the downloaded
+release binary when Rust is not available. It also installs config to
+`/etc/pedalcast/config.toml` and enables `pedalcast.service` at boot. On first
+install it detects available Bluetooth adapters and writes a config
+automatically:
 
 - Two or more adapters: `hci0` serves the app, `hci1` scans the bike.
 - One adapter: the same adapter scans and advertises in single-adapter mode.
@@ -77,6 +73,36 @@ PEDALCAST_CONFIG_SOURCE=examples/config.toml PEDALCAST_OVERWRITE_CONFIG=1 ./scri
 
 For a checked-in single-adapter example, see
 [examples/config.single-adapter.toml](examples/config.single-adapter.toml).
+
+To force installation from a specific local binary:
+
+```sh
+PEDALCAST_BINARY_SOURCE=/path/to/pedalcast ./scripts/install-systemd.sh
+```
+
+To force a source build even when a previous release binary exists in
+`target/release`:
+
+```sh
+PEDALCAST_FORCE_BUILD=1 ./scripts/install-systemd.sh
+```
+
+To force using the GitHub release binary and skip local compilation:
+
+```sh
+PEDALCAST_NO_BUILD=1 ./scripts/install-systemd.sh
+```
+
+## Release Packaging
+
+Build a GitHub release asset on a target machine:
+
+```sh
+./scripts/package-release.sh
+```
+
+On a 32-bit Raspberry Pi this writes `dist/pedalcast-linux-armv7.tar.gz`, which
+`install-systemd.sh` can download and install without Rust.
 
 To remove the service and installed binary:
 
