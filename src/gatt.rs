@@ -12,6 +12,7 @@ use zvariant::{ObjectPath, OwnedObjectPath, OwnedValue};
 use crate::adapter::AdapterId;
 use crate::error::PedalcastError;
 use crate::log;
+use crate::telemetry::Measurement;
 
 const APP_ROOT: &str = "/com/pedalcast";
 const CPS_SERVICE_PATH: &str = "/com/pedalcast/service0";
@@ -26,11 +27,11 @@ const SENSOR_LOCATION_UUID: &str = "00002a5d-0000-1000-8000-00805f9b34fb";
 
 pub struct CyclingPowerGatt {
     adapter: AdapterId,
-    telemetry_rx: Receiver<i16>,
+    telemetry_rx: Receiver<Measurement>,
 }
 
 impl CyclingPowerGatt {
-    pub fn new(adapter: AdapterId, telemetry_rx: Receiver<i16>) -> Self {
+    pub fn new(adapter: AdapterId, telemetry_rx: Receiver<Measurement>) -> Self {
         Self {
             adapter,
             telemetry_rx,
@@ -123,12 +124,13 @@ impl CyclingPowerGatt {
             .map_err(|source| {
                 PedalcastError::runtime(format!("measurement interface lookup failed: {source}"))
             })?;
+        let mut cadence = CadenceState::default();
 
         loop {
             match self.telemetry_rx.recv_timeout(Duration::from_secs(60)) {
-                Ok(power_watts) => {
+                Ok(sample) => {
                     let mut iface = measurement.get_mut();
-                    iface.power_watts = power_watts;
+                    iface.apply_measurement(&sample, &mut cadence);
                     let notifying = iface.notifying;
                     if notifying {
                         block_on(iface.value_changed(measurement.signal_emitter())).map_err(
@@ -173,7 +175,15 @@ impl CyclingPowerService {
 #[derive(Default)]
 struct MeasurementCharacteristic {
     power_watts: i16,
+    crank_revolutions: u16,
+    crank_event_time: u16,
     notifying: bool,
+}
+
+#[derive(Default)]
+struct CadenceState {
+    last_timestamp: Option<std::time::SystemTime>,
+    crank_revolutions: f64,
 }
 
 #[interface(name = "org.bluez.GattCharacteristic1")]
@@ -220,12 +230,38 @@ impl MeasurementCharacteristic {
 
     #[zbus(property, name = "Value")]
     fn value(&self) -> Vec<u8> {
-        cycling_power_measurement(self.power_watts)
+        cycling_power_measurement(
+            self.power_watts,
+            self.crank_revolutions,
+            self.crank_event_time,
+        )
     }
 
     #[zbus(property)]
     fn notifying(&self) -> bool {
         self.notifying
+    }
+}
+
+impl MeasurementCharacteristic {
+    fn apply_measurement(&mut self, measurement: &Measurement, cadence: &mut CadenceState) {
+        self.power_watts = measurement.power_watts as i16;
+
+        if let Some(last_timestamp) = cadence.last_timestamp {
+            if measurement.cadence_rpm > 0 {
+                let elapsed = measurement
+                    .timestamp
+                    .duration_since(last_timestamp)
+                    .unwrap_or_default()
+                    .as_secs_f64();
+                cadence.crank_revolutions += f64::from(measurement.cadence_rpm) * elapsed / 60.0;
+                let event_delta = (elapsed * 1024.0).round() as u16;
+                self.crank_event_time = self.crank_event_time.wrapping_add(event_delta);
+            }
+        }
+
+        cadence.last_timestamp = Some(measurement.timestamp);
+        self.crank_revolutions = cadence.crank_revolutions as u16;
     }
 }
 struct FeatureCharacteristic;
@@ -278,9 +314,48 @@ impl SensorLocationCharacteristic {
     }
 }
 
-fn cycling_power_measurement(power_watts: i16) -> Vec<u8> {
-    let mut value = Vec::with_capacity(4);
-    value.extend_from_slice(&0u16.to_le_bytes());
+fn cycling_power_measurement(
+    power_watts: i16,
+    crank_revolutions: u16,
+    crank_event_time: u16,
+) -> Vec<u8> {
+    let mut value = Vec::with_capacity(8);
+    value.extend_from_slice(&0x20u16.to_le_bytes());
     value.extend_from_slice(&power_watts.to_le_bytes());
+    value.extend_from_slice(&crank_revolutions.to_le_bytes());
+    value.extend_from_slice(&crank_event_time.to_le_bytes());
     value
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    use super::{cycling_power_measurement, CadenceState, MeasurementCharacteristic};
+    use crate::telemetry::Measurement;
+
+    #[test]
+    fn measurement_includes_crank_revolution_data() {
+        assert_eq!(
+            cycling_power_measurement(250, 12, 2048),
+            vec![0x20, 0x00, 0xfa, 0x00, 0x0c, 0x00, 0x00, 0x08]
+        );
+    }
+
+    #[test]
+    fn cadence_updates_crank_revolutions_and_event_time() {
+        let mut characteristic = MeasurementCharacteristic::default();
+        let mut cadence = CadenceState::default();
+        let mut first = Measurement::live(120, 60);
+        first.timestamp = UNIX_EPOCH;
+        let mut second = Measurement::live(121, 60);
+        second.timestamp = UNIX_EPOCH + Duration::from_secs(2);
+
+        characteristic.apply_measurement(&first, &mut cadence);
+        characteristic.apply_measurement(&second, &mut cadence);
+
+        assert_eq!(characteristic.power_watts, 121);
+        assert_eq!(characteristic.crank_revolutions, 2);
+        assert_eq!(characteristic.crank_event_time, 2048);
+    }
 }

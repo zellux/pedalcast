@@ -8,12 +8,12 @@ use crate::adapter::AdapterId;
 use crate::error::PedalcastError;
 use crate::keiser;
 use crate::log;
-use crate::telemetry::DropoutFilter;
+use crate::telemetry::{DropoutFilter, Measurement};
 
 pub struct BtmonScanner {
     adapter: AdapterId,
     suppress_single_zero_dropouts: bool,
-    telemetry_tx: Option<Sender<i16>>,
+    telemetry_tx: Option<Sender<Measurement>>,
     btmon: Option<Child>,
 }
 
@@ -21,7 +21,7 @@ impl BtmonScanner {
     pub fn new(
         adapter: AdapterId,
         suppress_single_zero_dropouts: bool,
-        telemetry_tx: Option<Sender<i16>>,
+        telemetry_tx: Option<Sender<Measurement>>,
     ) -> Self {
         Self {
             adapter,
@@ -97,7 +97,7 @@ impl Drop for BtmonScanner {
 fn parse_btmon(
     stdout: impl std::io::Read,
     suppress_single_zero_dropouts: bool,
-    telemetry_tx: Option<Sender<i16>>,
+    telemetry_tx: Option<Sender<Measurement>>,
 ) {
     let reader = BufReader::new(stdout);
     let mut current_address = String::new();
@@ -145,7 +145,7 @@ fn parse_btmon(
                     let version = keiser::bike_version(&payload).ok();
                     for measurement in dropout_filter.ingest(stats.into_measurement()) {
                         if let Some(telemetry_tx) = &telemetry_tx {
-                            let _ = telemetry_tx.send(measurement.power_watts as i16);
+                            let _ = telemetry_tx.send(measurement.clone());
                         }
                         log::info(
                             "bike.keiser",
