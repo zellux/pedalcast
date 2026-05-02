@@ -6,4 +6,5 @@ description = "Keiser M3i telemetry bridge for standard indoor-cycling apps"
 license = "MIT"
 
 [dependencies]
-
+zbus = { version = "5.15.0", default-features = true }
+zvariant = "5.8.0"

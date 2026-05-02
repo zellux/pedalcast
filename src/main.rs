@@ -2,6 +2,7 @@ mod adapter;
 mod ble;
 mod config;
 mod error;
+mod gatt;
 mod keiser;
 mod log;
 mod supervisor;

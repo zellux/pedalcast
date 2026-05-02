@@ -5,6 +5,7 @@ use crate::adapter::AdapterRegistry;
 use crate::ble::{BtmonScanner, LegacyAdvertiser};
 use crate::config::Config;
 use crate::error::PedalcastError;
+use crate::gatt::CyclingPowerGatt;
 use crate::log;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,6 +67,7 @@ impl Supervisor {
         let advertiser =
             LegacyAdvertiser::new(self.config.server.adapter, self.config.server.name.clone());
         advertiser.start()?;
+        CyclingPowerGatt::new(self.config.server.adapter).start();
 
         let mut scanner = BtmonScanner::new(
             self.config.bike.adapter,
@@ -73,13 +75,12 @@ impl Supervisor {
         );
         scanner.start()?;
 
-        log::warn("app.ble", "gatt_server_pending_bluez", &[]);
         log::info(
             "supervisor",
             "running",
             &[
                 ("bike", "searching".to_string()),
-                ("app_server", "advertising_no_gatt".to_string()),
+                ("app_server", "advertising_gatt_registering".to_string()),
             ],
         );
 
@@ -90,7 +91,7 @@ impl Supervisor {
                 "heartbeat",
                 &[
                     ("bike", "searching".to_string()),
-                    ("app_server", "advertising_no_gatt".to_string()),
+                    ("app_server", "advertising_gatt_registering".to_string()),
                 ],
             );
         }
