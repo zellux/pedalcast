@@ -1,4 +1,5 @@
 mod adapter;
+mod advertise;
 mod ble;
 mod config;
 mod error;

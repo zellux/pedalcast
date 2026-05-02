@@ -3,7 +3,8 @@ use std::thread;
 use std::time::Duration;
 
 use crate::adapter::AdapterRegistry;
-use crate::ble::{BtmonScanner, LegacyAdvertiser};
+use crate::advertise::BluezAdvertiser;
+use crate::ble::BtmonScanner;
 use crate::config::Config;
 use crate::error::PedalcastError;
 use crate::gatt::CyclingPowerGatt;
@@ -65,11 +66,9 @@ impl Supervisor {
     }
 
     fn run_daemon(self) -> Result<(), PedalcastError> {
-        let advertiser =
-            LegacyAdvertiser::new(self.config.server.adapter, self.config.server.name.clone());
-        advertiser.start()?;
         let (telemetry_tx, telemetry_rx) = mpsc::channel();
         CyclingPowerGatt::new(self.config.server.adapter, telemetry_rx).start();
+        BluezAdvertiser::new(self.config.server.adapter, self.config.server.name.clone()).start();
 
         let mut scanner = BtmonScanner::new(
             self.config.bike.adapter,

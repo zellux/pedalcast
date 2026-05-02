@@ -9,44 +9,6 @@ use crate::keiser;
 use crate::log;
 use crate::telemetry::DropoutFilter;
 
-pub struct LegacyAdvertiser {
-    adapter: AdapterId,
-    name: String,
-}
-
-impl LegacyAdvertiser {
-    pub fn new(adapter: AdapterId, name: String) -> Self {
-        Self { adapter, name }
-    }
-
-    pub fn start(&self) -> Result<(), PedalcastError> {
-        let adapter = self.adapter.to_string();
-        run_command("sudo", &["hciconfig", &adapter, "up"])?;
-        run_command("sudo", &["hciconfig", &adapter, "name", &self.name])?;
-        let _ = run_command("sudo", &["hciconfig", &adapter, "noleadv"]);
-
-        let hex_values = advertising_payload(&self.name);
-        let mut args = vec!["hcitool", "-i", &adapter, "cmd", "0x08", "0x0008"];
-        for value in &hex_values {
-            args.push(value);
-        }
-        run_command("sudo", &args)?;
-        run_command("sudo", &["hciconfig", &adapter, "leadv", "0"])?;
-        run_command("sudo", &args)?;
-
-        log::info(
-            "app.ble",
-            "legacy_advertising",
-            &[
-                ("adapter", self.adapter.to_string()),
-                ("name", self.name.clone()),
-                ("service", "cycling_power".to_string()),
-            ],
-        );
-        Ok(())
-    }
-}
-
 pub struct BtmonScanner {
     adapter: AdapterId,
     suppress_single_zero_dropouts: bool,
@@ -213,32 +175,6 @@ fn parse_btmon(
             }
         }
     }
-}
-
-fn advertising_payload(name: &str) -> Vec<String> {
-    let mut data = Vec::new();
-    data.push(0x02);
-    data.push(0x01);
-    data.push(0x06);
-    data.push(0x03);
-    data.push(0x03);
-    data.push(0x18);
-    data.push(0x18);
-
-    let name_bytes = name.as_bytes();
-    let max_name_bytes = 29usize.saturating_sub(data.len());
-    let name_bytes = &name_bytes[..name_bytes.len().min(max_name_bytes)];
-    data.push((name_bytes.len() + 1) as u8);
-    data.push(0x09);
-    data.extend_from_slice(name_bytes);
-
-    let length = data.len() as u8;
-    let mut payload = vec![format!("{length:02X}")];
-    payload.extend(data.iter().map(|byte| format!("{byte:02X}")));
-    while payload.len() < 32 {
-        payload.push("00".to_string());
-    }
-    payload
 }
 
 fn run_command(program: &str, args: &[&str]) -> Result<(), PedalcastError> {

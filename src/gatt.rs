@@ -38,6 +38,11 @@ impl CyclingPowerGatt {
     }
 
     pub fn start(self) {
+        log::info(
+            "app.gatt",
+            "starting",
+            &[("adapter", self.adapter.to_string())],
+        );
         thread::spawn(move || {
             if let Err(error) = self.run() {
                 log::error("app.gatt", "failed", &[("error", error.to_string())]);
@@ -46,6 +51,11 @@ impl CyclingPowerGatt {
     }
 
     fn run(self) -> Result<(), PedalcastError> {
+        log::info(
+            "app.gatt",
+            "connecting_dbus",
+            &[("adapter", self.adapter.to_string())],
+        );
         let connection = Connection::system()
             .map_err(|source| PedalcastError::runtime(format!("D-Bus connect failed: {source}")))?;
 
