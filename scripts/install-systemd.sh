@@ -69,9 +69,18 @@ download_release_binary() {
   arch="$(detect_release_arch)"
   local asset="pedalcast-linux-${arch}.tar.gz"
   local url="${release_base}/${asset}"
+  local curl_args=(-fL)
+  if [[ -n "${PEDALCAST_INSECURE_DOWNLOAD:-}" ]]; then
+    curl_args=(-fkL)
+    echo "warning: PEDALCAST_INSECURE_DOWNLOAD is set; skipping TLS certificate verification."
+  fi
   temp_dir="$(mktemp -d)"
   echo "cargo not found; downloading ${url}"
-  curl -fL "${url}" -o "${temp_dir}/${asset}"
+  if ! curl "${curl_args[@]}" "${url}" -o "${temp_dir}/${asset}"; then
+    echo "error: release binary download failed." >&2
+    echo "If this is an older Raspberry Pi OS with stale CA certificates, install ca-certificates or retry with PEDALCAST_INSECURE_DOWNLOAD=1." >&2
+    return 1
+  fi
   tar -xzf "${temp_dir}/${asset}" -C "${temp_dir}"
   if [[ ! -x "${temp_dir}/pedalcast" ]]; then
     echo "error: release asset did not contain an executable named pedalcast" >&2

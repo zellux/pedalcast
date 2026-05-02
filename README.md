@@ -93,6 +93,14 @@ To force using the GitHub release binary and skip local compilation:
 PEDALCAST_NO_BUILD=1 ./scripts/install-systemd.sh
 ```
 
+If an older Raspberry Pi OS cannot verify GitHub's TLS certificate, update CA
+certificates first. As a last resort for an old local Pi image, you can skip TLS
+certificate verification explicitly:
+
+```sh
+PEDALCAST_NO_BUILD=1 PEDALCAST_INSECURE_DOWNLOAD=1 ./scripts/install-systemd.sh
+```
+
 ## Release Packaging
 
 Build a GitHub release asset on a target machine:
