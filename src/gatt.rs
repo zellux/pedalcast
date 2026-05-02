@@ -254,14 +254,22 @@ impl MeasurementCharacteristic {
                     .duration_since(last_timestamp)
                     .unwrap_or_default()
                     .as_secs_f64();
+                let previous_complete_revolutions = cadence.crank_revolutions as u16;
                 cadence.crank_revolutions += f64::from(measurement.cadence_rpm) * elapsed / 60.0;
-                let event_delta = (elapsed * 1024.0).round() as u16;
-                self.crank_event_time = self.crank_event_time.wrapping_add(event_delta);
+                let complete_revolutions = cadence.crank_revolutions as u16;
+                let new_revolutions =
+                    complete_revolutions.wrapping_sub(previous_complete_revolutions);
+                if new_revolutions > 0 {
+                    let ticks_per_revolution = 60.0 * 1024.0 / f64::from(measurement.cadence_rpm);
+                    let event_delta =
+                        (ticks_per_revolution * f64::from(new_revolutions)).round() as u16;
+                    self.crank_revolutions = complete_revolutions;
+                    self.crank_event_time = self.crank_event_time.wrapping_add(event_delta);
+                }
             }
         }
 
         cadence.last_timestamp = Some(measurement.timestamp);
-        self.crank_revolutions = cadence.crank_revolutions as u16;
     }
 }
 struct FeatureCharacteristic;
@@ -357,5 +365,26 @@ mod tests {
         assert_eq!(characteristic.power_watts, 121);
         assert_eq!(characteristic.crank_revolutions, 2);
         assert_eq!(characteristic.crank_event_time, 2048);
+    }
+
+    #[test]
+    fn cadence_event_time_advances_only_on_complete_revolutions() {
+        let mut characteristic = MeasurementCharacteristic::default();
+        let mut cadence = CadenceState::default();
+        for milliseconds in [0, 300, 600, 900] {
+            let mut measurement = Measurement::live(100, 60);
+            measurement.timestamp = UNIX_EPOCH + Duration::from_millis(milliseconds);
+            characteristic.apply_measurement(&measurement, &mut cadence);
+        }
+
+        assert_eq!(characteristic.crank_revolutions, 0);
+        assert_eq!(characteristic.crank_event_time, 0);
+
+        let mut measurement = Measurement::live(100, 60);
+        measurement.timestamp = UNIX_EPOCH + Duration::from_millis(1200);
+        characteristic.apply_measurement(&measurement, &mut cadence);
+
+        assert_eq!(characteristic.crank_revolutions, 1);
+        assert_eq!(characteristic.crank_event_time, 1024);
     }
 }
