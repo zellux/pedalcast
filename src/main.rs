@@ -1,6 +1,7 @@
 mod adapter;
 mod advertise;
 mod ble;
+mod bluez;
 mod config;
 mod error;
 mod gatt;
