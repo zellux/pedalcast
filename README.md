@@ -1,8 +1,10 @@
 # Pedalcast
 
 Pedalcast is a small Rust daemon for turning proprietary indoor-bike telemetry
-into standard training-app signals. The first target is a Keiser M3i bike on one
-Bluetooth adapter and an app-facing BLE server on another.
+into standard training-app signals. The first target is a Keiser M3i bike and an
+app-facing BLE Cycling Power server running from a Raspberry Pi.
+
+![How Pedalcast works](docs/images/pedalcast-overview.png)
 
 The intended deployment is a Raspberry Pi near the bike. Pedalcast passively
 scans Keiser M3i BLE advertisements, normalizes the live power/cadence samples,
@@ -43,6 +45,8 @@ The installer:
 
 - Installs the binary to `/usr/local/bin/pedalcast`.
 - Installs config to `/etc/pedalcast/config.toml`.
+- Installs `pedalcast-hci1.service` to attach the Raspberry Pi's internal
+  UART Bluetooth before Pedalcast starts.
 - Installs and enables `pedalcast.service`.
 - Starts the service immediately.
 - Auto-detects available Bluetooth adapters and writes a first config.
@@ -70,6 +74,7 @@ sudo systemctl stop pedalcast
 Healthy startup should include lines like:
 
 ```text
+pedalcast-hci1: hci1 is UP RUNNING
 config loaded path=/etc/pedalcast/config.toml bike_adapter=hci1 server_adapter=hci0
 app.gatt registered adapter=hci0 service=cycling_power
 app.ble advertising_registered adapter=hci0 name=Pedalcast service=cycling_power
@@ -144,6 +149,11 @@ Pedalcast can run with either one or two Bluetooth adapters:
 - Two adapters are recommended. One adapter scans the bike while the other
   advertises the Cycling Power service to training apps, which is usually more
   stable.
+- On Raspberry Pi systems with a USB Bluetooth dongle, the USB controller may
+  claim `hci0` before the built-in UART Bluetooth is attached. The installer
+  adds `pedalcast-hci1.service` to attach the built-in controller directly, so
+  the recommended layout remains `hci0` for apps and `hci1` for bike scanning
+  after reboot.
 - One adapter can work, and the installer will automatically create a
   single-adapter config when only one `hciN` device is present. Because scan and
   advertising share the same radio, some hardware will occasionally drop signal
